@@ -1,0 +1,361 @@
+---
+title: "Liver Disease Prediction Project"
+author: "Group 7: Mohan Liu, Yimin Yuan, Xinyu Diao"
+date: "2023-05-09"
+output: pdf_document
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = FALSE, message = FALSE,
+                      warnings = FALSE, fig.align = 'center', eval = TRUE)
+```
+
+## Introduction
+Liver disease is a significant public health concern worldwide, and early detection can greatly improve patient outcomes. This study aims to develop a predictive model to identify liver disease in patients using a dataset collected from India, including 416 with liver disease and 167 without liver disease. The dataset contains 11 variables, including age, gender, and various blood markers, and a special variable named “dataset”, it represents the liver disease diagnosis, split the data into two sets (1 = patients with liver disease, 2 = patients with no disease).  
+
+Our approach involves comparing different machine learning algorithms, including logistic regression, K-Nearest-Neighbors (KNN), decision tree, random forest, and boosting, to select the model with the highest accuracy. The main conclusions drawn from our study show that certain algorithms perform better in predicting liver disease, which can be useful for medical professionals, contributing to better prevention and management strategies.  
+
+## Related Work
+Previous research has explored different approaches to predict liver disease using machine learning techniques. For instance, Bora et al. (2016) compared the performance of multiple classifiers, including logistic regression, decision trees, and support vector machines, on the same Indian liver patient dataset. They concluded that logistic regression outperformed other methods in terms of accuracy. However, our study extends this work by incorporating additional algorithms such as KNN, random forests, and boosting, providing a more comprehensive comparison and analysis.  
+
+Another study by Sathyadevan et al. (2014) investigated the use of artificial neural networks (ANN) to predict liver disease using a different dataset. They reported promising results, but the applicability of their findings to the Indian liver patient dataset remains unclear. Therefore, our study seeks to address this gap by comparing multiple methods on a consistent dataset, ultimately providing a better understanding of the most effective techniques for liver disease prediction.  
+
+## Methods
+
+To find the best machine learning model for predicting liver disease in this dataset, we tried several different algorithms. Specifically, we used logistic regression, K-nearest neighbors (KNN), decision tree, random forest, and gradient boosting to build predictive models.   
+
+The script first fits a binary **logistic regression** model, using 'Dataset' as the target variable and all other variables in the 'train' dataset as predictors. To avoid collinearity, it removes any features with a correlation higher than 0.75. After preprocessing, the model is refitted with the updated dataset. The model's performance is evaluated by generating predictions on the train and test datasets. Predicted probabilities above 0.5 are classified as 1, otherwise as 0. The error rate, or rate of misclassifications, is calculated for both datasets, providing an indication of the model's accuracy.
+
+Then, we employed the **K-nearest-neighbors** (KNN) algorithm as our second model. To ensure that variables can be measured in the same scale in distance calculations, we standardized both the training and test datasets. Then, we used a 5-fold cross validation to find the best k for this data.  
+
+After that, we tried a **decision tree** model to do the prediction, because it is easy to build and easy to interpret. Considering the original dataset is imbalanced, which means we have more samples with disease (416) than those without the disease (167), we adjusted the class distribution by upweighting the observations without the disease in the training set using the ovun.sample function.We used the Gini impurity index for splitting criteria here. Also, we applied a 5-fold cross validation to find the best size for the tree and pruned it.   
+
+While decision tree models are relatively simple to build, they may not be flexible enough to accurately classify new samples. To improve performance, we applied a **random forest** algorithm, which combines multiple decision trees and takes advantage of their diversity to make more accurate predictions. We chose 300 as the size of the forest because the number of predictors in this dataset is relatively small. Furthermore, variable importance is visualized to identify the most influential predictors.  
+
+**Boosting** is a machine learning algorithm that iteratively builds an ensemble of weak models to create a strong predictive model. In our analysis, we used the boosting algorithm to improve the performance of our predictive model. We set the shrinkage parameter to be 0.2, which controls the learning rate of the algorithm and prevents overfitting, and we set the number of trees to be 5000. We can also obtain a plot of the relative influence of different variables in the model. 
+
+For each model, we calculate the training and test errors, as well as the accuracy, which enables us to compare their performance and identify the most effective approach for predicting liver disease in patients.  
+
+## Data and Experiment setup
+
+The indian liver  dataset (https://www.kaggle.com/datasets/uciml/indian-liver-patient-records) is collected from the North East of Andhra Pradesh, India. It contains 11 variables, including two simple demographic variables (age and gender), and various blood markers that may relate with liver disease (for example total bilirubin, alanine aminotransferase),  and a special variable named “dataset”, which represents the liver disease diagnosis, split the data into two sets (1 = patients with liver disease, 2 = patients with no disease) and it is the response variable for our model.  
+
+Firstly, we imported the data, removed missing values, and recode the diagnosis variable to a binary format (0 for no liver disease, 1 for liver disease). Then, we made some descriptive analysis to show the basic information. The dataset consists of 583 patient records, including 441 males and 142 females. Histogram plots of the continuous variables are shown below. From the plots, we can see that the distributions of age, total_proteins, albumin, and albumin and globulin ratio are approximately symmetrical and normally distributed, while the other variables are right-skewed. In addition, the dataset is slightly imbalanced, with 416 individuals diagnosed with liver disease and 167 without.
+
+
+```{r}
+# Load necessary libraries
+library(caret)
+library(corrplot)
+library(ggplot2)
+library(randomForest)
+
+# Import and clean the dataset
+liver <- read.csv("indian_liver_patient.csv", sep = ",", header = TRUE)
+liver <- na.omit(liver)
+
+# Summarize the dataset
+#names(liver)
+#head(liver, n = 10)
+#summary(liver)
+#summary(as.factor(liver$Dataset))
+
+# Convert the target variable to binary format (0 and 1)
+# 1 - with disease, 2 -  without disease
+liver$Dataset <- 1 - (liver$Dataset - 1)
+
+```
+
+
+```{r, out.width="80%"}
+# Histogram summary
+par(mfrow=c(2, 5)) 
+for (i in 1:ncol(liver)) {
+  if (i!=2){
+    hist(liver[,i], main=colnames(liver)[i], col="grey", border="white",xlab = "")
+  }
+}
+```
+\begin{center}
+Figure 1: Histogram of continuous varibles
+\end{center}
+
+In addition, we performed a correlation analysis to examine the linear relationships between variables. The resulting correlation matrix was visualized using a heat map, allowing us to easily identify strong positive and negative correlations between the variables.  
+
+```{r, out.width="80%"}
+# Calculate and visualize correlations
+non_numeric_cols <- c('Gender', 'Dataset')
+correlations <- cor(liver[, !(names(liver) %in% non_numeric_cols)])
+correlations_rounded <- round(correlations, digits = 2)
+
+corrplot(correlations, type = "full", method = "number", tl.srt = 30) # Set the plot width and height
+```
+\begin{center}
+Figure 2: Correlation heat map of continuous variables
+\end{center}
+
+```{r}
+# Split the dataset into train and test sets
+smp_size <- floor(0.6 * nrow(liver))
+set.seed(1)
+train_ind <- sample(seq_len(nrow(liver)), size = smp_size)
+train <- liver[train_ind, ]
+test <- liver[-train_ind, ]
+```
+
+To evaluate the performance of our machine learning algorithms, we randomly split the dataset into training (60%) and testing (40%) sets. This allowed us to train our models on a subset of the data and test them on a completely independent set, ensuring that our models were not overfitting to the data. By doing so, we were able to accurately compare the performance of each model and select the best one for predicting liver disease.
+
+## Result
+### 1 - Logistic Regression
+
+The logistic regression analysis revealed that the variables age, Total_Bilirubin, and Alamine_Aminotransferase have significant contributions to the model. Although the test error is relatively small, the model exhibits a high false positive rate and poor prediction accuracy for individuals without the disease. Hence, it may not be the optimal choice for liver disease prediction.
+
+\begin{center}
+Table 1: Coefficients in logistic regression
+\end{center}
+```{r, warnings = FALSE}
+# Fit a logistic regression model
+glm.fit <- glm(as.factor(Dataset) ~ ., data = train, family = binomial)
+summary_glm <- summary(glm.fit)
+knitr::kable(summary_glm$coefficients)
+```
+
+
+```{r, warnings = FALSE}
+# Find and remove highly correlated columns
+highCorrCols <- findCorrelation(correlations, cutoff = 0.75, names = TRUE)
+train_removed <- train[, !(names(liver) %in% highCorrCols)]
+test_removed <- test[, !(names(liver) %in% highCorrCols)]
+
+# Fit the model again
+glm.fit <- glm(as.factor(Dataset) ~ ., data = train_removed, family = binomial)
+
+# Train error and Test error
+glm_train <- predict(glm.fit, newdata = train_removed,type = 'response')
+glm_train_y <- ifelse(glm_train > 0.5, 1, 0)
+train_error_glm <- mean(glm_train_y != train_removed$Dataset)
+print(paste("Training error of logistic regression: ", train_error_glm))
+
+glm_test <- predict(glm.fit, newdata = test_removed,type = 'response')
+glm_test_y <- ifelse(glm_test > 0.5, 1, 0)
+test_error_glm <- mean(glm_test_y != test_removed$Dataset)
+print(paste("Test error of logistic regression: ", test_error_glm))
+```
+
+\begin{center}
+Table 2: Confusion matrix for logistic regression
+\end{center}
+```{r, eval=TRUE}
+confusion_matrix_lr <- table(Actual = test_removed$Dataset,
+                              Predicted = glm_test_y)
+knitr::kable(confusion_matrix_lr, col.names = c("Predicted 0", "Predicted 1"))
+```
+
+
+### 2 - KNN
+
+In the KNN model, we found the best k in this training data to be 7 after the cross validation. The training error was found to be 0.22, suggestting that the model has good performance on the training data. The test error was found to be 0.35, which indicates that the model has moderate generalization performance. Furthermore, the confusion matrix reveals that the model has good prediction performance on actual patients, with a high true positive rate. However, the false positive rate is found to be high, indicating that a significant number of healthy individuals are misclassified as having the disease.
+
+```{r}
+# Standardization
+train$Gender <- as.factor(train$Gender)
+test$Gender <- as.factor(test$Gender)
+
+fit_std <- preProcess(train[,-11], method = "scale")
+train_std <- predict(fit_std, newdata = train[,-11])
+test_std <- predict(fit_std, newdata = test[,-11])
+train_std <- data.frame(train_std,
+                        disease = train[,11])
+test_std <- data.frame(test_std,
+                        disease = test[,11])
+
+# Find the best K
+set.seed(1)
+knnFit <- train(as.factor(disease) ~ ., data = train_std, method = "knn",
+                trControl = trainControl(method = "cv", number = 5))
+print(paste("Best K:", knnFit$bestTune$k))
+
+# Fit the KNN model with K = 7
+fit <- knn3(as.factor(disease) ~ ., data = train_std, k = 7)
+pred_train <- predict(fit, newdata = train_std, type = "class")
+train_error_KNN <- mean(pred_train != train_std$disease)
+print(paste("Training error of KNN: ", train_error_KNN))
+
+pred_test <- predict(fit, newdata = test_std, type = "class")
+test_error_KNN <- mean(pred_test != test_std$disease)
+print(paste("Test error of KNN: ", test_error_KNN))
+```
+
+\begin{center}
+Table 3: Confusion matrix for KNN
+\end{center}
+```{r, eval=TRUE}
+# Confusion matrix for KNN
+confusion_matrix_KNN <- table(Actual = test_std$disease,
+                              Predicted = pred_test)
+knitr::kable(confusion_matrix_KNN, col.names = c("Predicted 0", "Predicted 1"))
+```
+
+### 3 - Decision Tree
+
+Due to the imbalanced nature of the dataset, the simple decision tree model had a tendency to predict that all individuals had liver disease, since the majority (71%) of the observations did. To address this issue, we balanced the data to get a more equal number of individuals with and without the disease. The results show that, although the training and test error are higher in the decision tree model, the false positive rate is lower than in the previous model. This suggests that decision tree after data balancing is better at correctly identifying individuals without the disease than logistic regression and KNN, even though it may make more errors overall.
+
+```{r, out.width="70%"}
+library(tree)
+library(glmnet)
+library(ROCR)
+library(dplyr)
+library(ROSE)
+
+# Balance the data
+tree_train <- ovun.sample(Dataset ~ ., data = train, method = "over", p = 0.5, seed = 1)$data
+#table(tree_train$Dataset)
+#head(tree_train)
+
+# Build tree and choose the best tree size
+liver.tree <- tree(as.factor(Dataset) ~ ., data = tree_train, split = "gini")
+set.seed(1)
+cv.liver <- cv.tree(liver.tree)
+cv.liver_df <- data.frame(size = cv.liver$size, deviance = cv.liver$dev)
+best_size <- cv.liver$size[which.min(cv.liver$dev)]
+#ggplot(cv.liver_df, mapping = aes(x = size, y = deviance)) + 
+#  geom_point(size = 3) + 
+#  geom_line() +
+#  geom_vline(xintercept = best_size, col = "red")
+
+# The subtree with best_size terminal nodes
+liver.tree.final <- prune.tree(liver.tree, best = best_size) 
+plot(liver.tree.final)
+text(liver.tree.final)
+```
+\begin{center}
+Figure 3: Plot of the final tree
+\end{center}
+
+```{r, out.width="70%"}
+pred_liver_train <- predict(liver.tree.final, newdata = train, type = "class")
+train_error_tree <- mean(pred_liver_train != train$Dataset)
+print(paste("Training error of decision tree: ", train_error_tree))
+
+pred_liver_test <- predict(liver.tree.final, newdata = test, type = "class")
+test_error_tree <- mean(pred_liver_test != test$Dataset)
+print(paste("Test error of decision tree: ", test_error_tree))
+```
+
+\begin{center}
+Table 4: Confusion matrix for decision tree
+\end{center}
+```{r, eval=TRUE}
+# Confusion matrix for decision tree
+confusion_matrix_tree <- table(Actual = test$Dataset,
+                              Predicted = pred_liver_test)
+knitr::kable(confusion_matrix_tree, col.names = c("Predicted 0", "Predicted 1"))
+```
+
+### 4 - Random Forest
+
+After building a random forest model with 300 trees, we observed a significant improvement in the prediction accuracy in both the training and test sets, with a training error of 0 and a test error of 0.31. However, we still noted a high false positive rate in the predictions. Despite this, the random forest model remains the best-performing model among those we evaluated, we will try additional techniques to reduce the false positive rate, such as adjusting the decision threshold or applying further data balancing techniques. Additionally, the variable importance plot indicates that `aspartate_aminotransferase` is the most important variable in the random forest model.
+
+```{r, out.width="70%"}
+# Train a random forest model and make predictions on the test dataset
+set.seed(1)
+rf_model <- randomForest(as.factor(Dataset) ~ ., data = train, ntree = 300, importance = TRUE)
+rf_pred <- predict(rf_model, newdata = test)
+
+# Visualize variable importance
+varImpPlot(rf_model, type = 1)
+```
+\begin{center}
+Figure 4: Variable importance plot from random forest
+\end{center}
+
+```{r, out.width="70%"}
+# MSE
+rf_train_pre <- predict(rf_model, newdata = train)
+train_error_rf <- mean(rf_train_pre != train$Dataset)
+print(paste("Training error of random forest: ", train_error_rf))
+
+test_error_rf <- mean(rf_pred != test$Dataset)
+print(paste("Test error of random forest: ", test_error_rf))
+```
+
+\begin{center}
+Table 5: Confusion matrix for random forest
+\end{center}
+```{r, eval=TRUE}
+confusion_matrix_rf <- table(Actual = test$Dataset,
+                              Predicted = rf_pred)
+knitr::kable(confusion_matrix_rf, col.names = c("Predicted 0", "Predicted 1"))
+```
+
+### 5 - Boosting
+
+The relative influence plot generated from the boosting model revealed that the results are consistent with those obtained from the random forest and logistic regression models, where gender had the least influence on liver disease prediction. The model achieved a very low training error of nearly 0, while the test error was 0.34. However, like the other models, the boosting model had a high false negative rate which requires improvement in future iterations.
+
+```{r, out.width="70%", warning = FALSE}
+library(gbm)
+set.seed(1)
+boost <- gbm(disease ~ .,data = train_std, distribution = "multinomial", n.trees = 5000, interaction.depth = 1, cv.folds = 5, shrinkage = 0.2)
+
+summary_boost <- summary(boost)
+```
+\begin{center}
+Figure 5: Relative influence of variables in boosting \\
+
+Table 6: Relative influence of variables in boosting
+\end{center}
+```{r, out.width="70%", warning = FALSE}
+summary_boost$rel.inf <- round(summary_boost$rel.inf, 2)
+knitr::kable(summary_boost[2])
+```
+
+
+```{r, out.width="70%", warning = FALSE}
+train.boost <- predict(boost, newdata = train_std, n.trees = 1000, type = "response")
+ytrain.boost <- colnames(train.boost)[apply(train.boost, 1, which.max)]
+train_error_boosting <- mean(as.numeric(ytrain.boost) != train_std$disease)
+print(paste("Training error of boosting: ", train_error_boosting))
+
+test.boost <- predict(boost, newdata = test_std, n.trees = 1000, type = "response")
+ytest.boost <- colnames(test.boost)[apply(test.boost, 1, which.max)]
+test_error_boosting <- mean(as.numeric(ytest.boost) != test_std$disease)
+print(paste("Test error of boosting: ", test_error_boosting))
+```
+
+\begin{center}
+Table 7: Confusion matrix for boosting
+\end{center}
+```{r, eval=TRUE}
+confusion_matrix_boosting <- table(Actual = test$Dataset,
+                              Predicted = ytest.boost)
+knitr::kable(confusion_matrix_boosting, col.names = c("Predicted 0", "Predicted 1"))
+```
+
+## Comparison between models
+```{r}
+# Accuracy
+accuracy_glm <- 1 - test_error_glm
+accuracy_KNN <- 1 - test_error_KNN
+accuracy_tree <- 1 - test_error_tree
+accuracy_rf <- 1 - test_error_rf
+accuracy_boosting <- 1 - test_error_boosting
+
+# Result
+result <- data.frame(Methods = c("Logistics regression", "KNN", "Decision Tree", "Random Forest", "Boosting"),
+                                TrainError = c(train_error_glm, train_error_KNN, train_error_tree, train_error_rf, train_error_boosting),
+                                TestError = c(test_error_glm, test_error_KNN, test_error_tree, test_error_rf, test_error_boosting),
+                                Accuracy = c(accuracy_glm, accuracy_KNN, accuracy_tree, accuracy_rf, accuracy_boosting))
+knitr::kable(result)
+```
+
+
+# Discussion
+
+By seeing the result of the models shown above, the model fitted by using **Boosting** algorithm has the smallest test error which is around 0.28, followed by the models fitted by using **Logistics regression** and **Random forest** algorithm which are both around 0.31. In our study, accuracy is measured by using **1 – test error**, so for **Boosting** model, the accuracy is around 0.72, and for **Logistic regression** and **Random Forest** models, the accuracy is around 0.69.   
+
+Briefly, **Boosting**, **Logistics regression**, and **Random Forest** are the best three models of these five models.   
+
+However, there are some limitations to our models. First of all, our dataset is imbalanced. Since there are 416 participants with disease and 167 participants without disease in the dataset, the model may be biased towards the majority class, resulting in poor performance on the minority class. That’s why our models predict better on participants with disease than participants without disease. and this can limit the usefulness of the model in real-world applications. Also, the model accuracy is not as good as expected. The accuracy of the **Decision Tree** model is around 0.61, however, if we predict all the participants in the dataset had disease, the accuracy should be around 0.71, so the accuracy of the **Decision Tree** model is even lower than if all the participants are predicted with disease.   
+
+For future analysis, since the test error of the **Boosting**, **Logistical regression**, **Random Forest** models are the smallest of these five models, we will mainly focus on these models to do evaluation. In our study, we have 11 variables, including the response variable `”Dataset”`, so there are only 10 predictor variables, which is somehow less. We included all these variables into the models, and we will consider adding the products of the predictor variables to fix new models and measure their test error and accuracy, in order to find out if these new models will be better or not. Finally, we are going to select variables based on the variable importance outputted by **Boosting**, and then use these selected variables to fit new models. We believe that the new models should perform better.  
+
